@@ -3,6 +3,7 @@ package godht
 import "net"
 import "sync"
 import "math/big"
+import "math/rand"
 
 const (
 	HasFoundSize = 100000
@@ -58,6 +59,16 @@ func GenerateIDList(cnt int64) (ids []ID) {
 	max := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 		0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 	num := big.NewInt(0).SetBytes(max)
-	step := big.NewInt(0).Div(num, big.NewInt(coubt+2))
+	step := big.NewInt(0).Div(num, big.NewInt(cnt+2))
+	for i := 1; i < int(cnt+1); i++ {
+		item := big.NewInt(0).Mul(step, big.NewInt(int64(i)))
+		item.Add(item, big.NewInt(int64(rand.Intn(99))))
+		ids = append(ids, item.Bytes())
+	}
+	return
+}
 
+// Neighbor define
+func (id ID) Neighbor(tableID ID) ID {
+	return append(id[:6], tableID[6:]...)
 }
