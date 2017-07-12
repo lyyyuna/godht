@@ -1,9 +1,14 @@
 package godht
 
-import "net"
-import "sync"
-import "math/big"
-import "math/rand"
+import (
+	"crypto/sha1"
+	"io"
+	"math/big"
+	"math/rand"
+	"net"
+	"sync"
+	"time"
+)
 
 const (
 	HasFoundSize = 100000
@@ -66,6 +71,15 @@ func GenerateIDList(cnt int64) (ids []ID) {
 		ids = append(ids, item.Bytes())
 	}
 	return
+}
+
+// GenerateId define
+func GenerateID() ID {
+	random := rand.New(rand.NewSource(time.Now().UnixNano()))
+	hash := sha1.New()
+	io.WriteString(hash, time.Now().String())
+	io.WriteString(hash, string(random.Int()))
+	return hash.Sum(nil)
 }
 
 // Neighbor define

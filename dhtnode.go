@@ -2,7 +2,10 @@ package godht
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
+
+	"github.com/zeebo/bencode"
 )
 
 //BOOTSTRAP define
@@ -61,6 +64,7 @@ func (dhtNode *DhtNode) AutofindNode() {
 			node.Port = raddr.Port
 			node.IP = raddr.IP
 			node.ID = nil
+			dhtNode.FindNode(val, args, node)
 		}
 	}
 
@@ -74,5 +78,27 @@ func (dhtNode *DhtNode) FindNode(v map[string]interface{}, args map[string]strin
 		id = node.ID.Neighbor(dhtNode.node.ID)
 	} else {
 		id = dhtNode.node.ID
+	}
+
+	v["t"] = fmt.Sprintf("%d", rand.Intn(100))
+	v["y"] = "q"
+	v["q"] = "find_node"
+
+	args["id"] = string(id)
+	args["target"] = string(GenerateID())
+	v["a"] = args
+	data, err := bencode.EncodeBytes(v)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	raddr := new(net.UDPAddr)
+	raddr.IP = node.IP
+	raddr.Port = node.Port
+	err = dhtNode.network.Send(data, raddr)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 }
