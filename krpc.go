@@ -108,7 +108,19 @@ func NewKRPC(dhtNode *DhtNode) *KRPC {
 
 // Response message
 func (krpc *KRPC) Response(msg *KRPCMessage) {
-	if len(krpc.Dht.table.Nodes) <= 
+	if len(krpc.Dht.table.Nodes) <= TableSize &&
+		len(hasfound) < HasFoundSize {
+		if response, ok := msg.Addion.(*Response); ok {
+			if nodestr, ok := response.R["nodes"].(string); ok {
+				nodes := parseBytesToNodes([]byte(nodestr))
+				for _, node := range nodes {
+					if node.Port > 0 && node.Port <= (1<<16) {
+						krpc.Dht.table.Put(node)
+					}
+				}
+			}
+		}
+	}
 }
 
 // Query message
@@ -116,4 +128,21 @@ func (krpc *KRPC) Query(msg *KRPCMessage) {
 
 }
 
+// parseBytesToNodes define
+func parseBytesToNodes(data []byte) []*KNode {
+	var nodes []*KNode
+	for i := 0; i < len(data); i = i + 26 {
+		if i+26 > len(data) {
+			break
+		}
 
+		kn := data[i : i+26]
+		node := new(KNode)
+		node.ID = ID(kn[0:20])
+		node.IP = kn[20:24]
+		port := kn[24:26]
+		node.Port = int(port[0])<<8 + int(port[1])
+		nodes = append(nodes, node)
+	}
+	return nodes
+}

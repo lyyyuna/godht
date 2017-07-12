@@ -12,6 +12,7 @@ import (
 
 const (
 	HasFoundSize = 100000
+	TableSize    = 1024
 )
 
 var mutex sync.Mutex
