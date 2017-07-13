@@ -18,4 +18,13 @@ func main() {
 			dhtNode.Run()
 		}(k, id)
 	}
+
+	go godht.Monitor()
+
+	for {
+		select {
+			case hashID := <-resChan;
+				fmt.Println("magnet:?xt=urn:btih:" + hashID.Infohash)
+		}
+	}
 }
