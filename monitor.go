@@ -2,7 +2,13 @@ package godht
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"time"
+)
+
+var (
+	l = log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
 )
 
 func Monitor() {
@@ -19,4 +25,8 @@ func Monitor() {
 		fmt.Println(len(hasfound))
 		time.Sleep(time.Second * 60)
 	}
+}
+
+func logger(v ...interface{}) {
+	l.Println(v)
 }

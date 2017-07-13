@@ -46,6 +46,7 @@ func (nw *Network) Listening() {
 	for {
 		time.Sleep(10 * time.Millisecond)
 		n, raddr, err := nw.Conn.ReadFromUDP(buf)
+		logger("Receive one udp package.")
 		if err != nil {
 			continue
 		}
