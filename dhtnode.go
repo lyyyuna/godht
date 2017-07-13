@@ -33,6 +33,7 @@ func NewDhtNode(id *ID, outQueue chan AnnounceData, addr string) *DhtNode {
 	dht.table = new(KTable)
 	dht.network = NewNetwork(dht, addr)
 	dht.krpc = NewKRPC(dht)
+	dht.outQueue = outQueue
 	return dht
 }
 
