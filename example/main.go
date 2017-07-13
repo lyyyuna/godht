@@ -23,8 +23,8 @@ func main() {
 
 	for {
 		select {
-			case hashID := <-resChan;
-				fmt.Println("magnet:?xt=urn:btih:" + hashID.Infohash)
+		case hashID := <-resChan:
+			fmt.Println("magnet:?xt=urn:btih:" + hashID.Infohash)
 		}
 	}
 }

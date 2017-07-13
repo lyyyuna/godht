@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"time"
 
 	"github.com/zeebo/bencode"
 )
@@ -67,8 +68,17 @@ func (dhtNode *DhtNode) AutofindNode() {
 			dhtNode.FindNode(val, args, node)
 		}
 	}
+	val := make(map[string]interface{})
+	args := make(map[string]string)
+	for {
+		node := dhtNode.table.Pop()
+		if node != nil {
+			dhtNode.FindNode(val, args, node)
+			continue
+		}
+		time.Sleep(time.Second * 2)
+	}
 
-	return
 }
 
 // FindNode define
