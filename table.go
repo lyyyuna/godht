@@ -2,6 +2,7 @@ package godht
 
 import (
 	"crypto/sha1"
+	"encoding/hex"
 	"io"
 	"math/big"
 	"math/rand"
@@ -86,4 +87,13 @@ func GenerateID() ID {
 // Neighbor define
 func (id ID) Neighbor(tableID ID) ID {
 	return append(id[:6], tableID[6:]...)
+}
+
+func (id ID) String() string {
+	return hex.EncodeToString(id)
+}
+
+// Neightor define
+func Neightor(id, tableID string) string {
+	return id[:6] + tableID[6:]
 }

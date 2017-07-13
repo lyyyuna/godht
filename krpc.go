@@ -144,7 +144,7 @@ func (krpc *KRPC) Query(msg *KRPCMessage) {
 					return
 				}
 
-				result := new(AnnounceData)
+				result := AnnounceData{}
 				result.Infohash = ID(infohash).String()
 				result.IP = msg.Addr.IP
 
@@ -152,8 +152,68 @@ func (krpc *KRPC) Query(msg *KRPCMessage) {
 				krpc.Dht.outQueue <- result
 
 				nodes := convertBytesStream(krpc.Dht.table.Snodes)
-
+				data, _ := krpc.encodeNodeResult(msg.T, "asdf13e", nodes)
+				go krpc.Dht.network.Send(data, msg.Addr)
 			}
+		}
+		if query.Y == "announce_peer" {
+			if infohash, ok := query.A["info_hash"].(string); ok {
+				token, ok := query.A["token"].(string)
+				if !ok {
+					return
+				} else if token != "asdf13e" {
+					return
+				}
+
+				var port int
+				var impliedPort int64
+				impliedPort, ok = query.A["implied_port"].(int64)
+				if ok {
+					if impliedPort != 0 {
+						port = msg.Addr.Port
+					}
+				} else {
+					pport, ok := query.A["port"].(int64)
+					if ok {
+						port = int(pport)
+					}
+				}
+
+				result := AnnounceData{}
+				result.Infohash = ID(infohash).String()
+				result.IP = msg.Addr.IP
+				result.Port = port
+				result.ImpliedPort = int(impliedPort)
+
+				var data []byte
+				if id, ok := query.A["id"].(string); ok {
+					newID := Neightor(id, krpc.Dht.node.ID.String())
+					data, _ = krpc.encodeNormalResult(msg.T, newID)
+				} else {
+					data, _ = krpc.encodeNormalResult(msg.T, krpc.Dht.node.ID.String())
+				}
+				go krpc.Dht.network.Send(data, msg.Addr)
+			}
+		}
+
+		if query.Y == "ping" {
+			var data []byte
+			if id, ok := query.A["id"].(string); ok && len(id) == 20 {
+				newID := Neightor(id, krpc.Dht.node.ID.String())
+				data, _ = krpc.encodeNormalResult(msg.T, newID)
+			} else {
+				data, _ = krpc.encodeNormalResult(msg.T, krpc.Dht.node.ID.String())
+			}
+			go krpc.Dht.network.Send(data, msg.Addr)
+		}
+
+		if query.Y == "find_node" {
+			if msg.T == "" {
+				return
+			}
+			nodes := convertBytesStream(krpc.Dht.table.Snodes)
+			data, _ := krpc.encodeNodeResult(msg.T, "", nodes)
+			go krpc.Dht.network.Send([]byte(data), msg.Addr)
 		}
 	}
 }
@@ -195,4 +255,32 @@ func convertIPPort(buf *bytes.Buffer, ip net.IP, port int) {
 	buf.Write(ip.To4())
 	buf.WriteByte(byte((port & 0xFF00) >> 8))
 	buf.WriteByte(byte(port & 0xFF))
+}
+
+func (krpc *KRPC) encodeNodeResult(tid string, token string, nodes []byte) ([]byte, error) {
+	v := make(map[string]interface{})
+	defer func() { v = nil }()
+	v["t"] = tid
+	v["y"] = "r"
+	args := make(map[string]string)
+	defer func() { args = nil }()
+	args["id"] = string(krpc.Dht.node.ID)
+	if token != "" {
+		args["token"] = token
+	}
+	args["nodes"] = bytes.NewBuffer(nodes).String()
+	v["r"] = args
+	return bencode.EncodeBytes(v)
+}
+
+func (krpc *KRPC) encodeNormalResult(tid string, id string) ([]byte, error) {
+	v := make(map[string]interface{})
+	defer func() { v = nil }()
+	v["t"] = tid
+	v["y"] = "r"
+	args := make(map[string]string)
+	defer func() { args = nil }()
+	args["id"] = id
+	v["r"] = args
+	return bencode.EncodeBytes(v)
 }
