@@ -3,6 +3,8 @@ package godht
 import (
 	"net"
 
+	"bytes"
+
 	"github.com/zeebo/bencode"
 )
 
@@ -125,7 +127,35 @@ func (krpc *KRPC) Response(msg *KRPCMessage) {
 
 // Query message
 func (krpc *KRPC) Query(msg *KRPCMessage) {
+	if query, ok := msg.Addion.(*Query); ok {
+		if query.Y == "get_peers" {
+			if infohash, ok := query.A["info_hash"].(string); ok {
+				if len(infohash) != 20 {
+					return
+				}
+				if msg.T == "" {
+					return
+				}
+				fromID, ok := query.A["id"].(string)
+				if !ok {
+					return
+				}
+				if len(fromID) != 20 {
+					return
+				}
 
+				result := new(AnnounceData)
+				result.Infohash = ID(infohash).String()
+				result.IP = msg.Addr.IP
+
+				// print infohash
+				krpc.Dht.outQueue <- result
+
+				nodes := convertBytesStream(krpc.Dht.table.Snodes)
+
+			}
+		}
+	}
 }
 
 // parseBytesToNodes define
@@ -145,4 +175,24 @@ func parseBytesToNodes(data []byte) []*KNode {
 		nodes = append(nodes, node)
 	}
 	return nodes
+}
+
+// conver
+func convertBytesStream(nodes []*KNode) []byte {
+	buf := bytes.NewBuffer(nil)
+	for _, v := range nodes {
+		convertNodeInfo(buf, v)
+	}
+	return buf.Bytes()
+}
+
+func convertNodeInfo(buf *bytes.Buffer, v *KNode) {
+	buf.Write(v.ID)
+	convertIPPort(buf, v.IP, v.Port)
+}
+
+func convertIPPort(buf *bytes.Buffer, ip net.IP, port int) {
+	buf.Write(ip.To4())
+	buf.WriteByte(byte((port & 0xFF00) >> 8))
+	buf.WriteByte(byte(port & 0xFF))
 }
