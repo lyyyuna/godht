@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha1"
+	"encoding/binary"
+	"fmt"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -23,18 +26,25 @@ type nodeID []byte
 
 // Dht struct description
 type Dht struct {
-	conn    *net.UDPConn
-	limiter *rate.Limiter
-	friends chan *node
-	exit    chan struct{}
-	mu      sync.Mutex
-	selfID  nodeID
-	secret	[]byte
+	conn          *net.UDPConn
+	limiter       *rate.Limiter
+	friends       chan *node
+	exit          chan struct{}
+	mu            sync.Mutex
+	selfID        nodeID
+	secret        []byte
+	announcements chan *announcement
 }
 
 type node struct {
 	addr string
 	id   string
+}
+
+type announcement struct {
+	src      *net.UDPAddr
+	infohash string
+	peer     *net.TCPAddr
 }
 
 // NewDHT constructor
@@ -58,14 +68,20 @@ func NewDHT(addr string, limit int) (*Dht, error) {
 
 // Run start to run the DHT sniffer
 func (d *Dht) Run() {
-	d.join()
+	fmt.Println("Begin to run....")
+	go d.join()
+	go d.listen()
+	go d.makeFriends()
 }
 
 func (d *Dht) join() {
-	for _, addr := range seeds {
-		d.friends <- &node{
-			addr: addr,
-			id:   string(randBytes(20)),
+	for i := 0; i < 3; i++ {
+		for _, addr := range seeds {
+			d.friends <- &node{
+				addr: addr,
+				id:   string(randBytes(20)),
+			}
+			fmt.Println(len(d.friends))
 		}
 	}
 }
@@ -78,7 +94,19 @@ func (d *Dht) listen() {
 			close(d.exit)
 			return
 		}
+		fmt.Println("listen")
 		d.onMessage(buf[:n], addr)
+	}
+}
+
+func (d *Dht) makeFriends() {
+	for {
+		select {
+		case node := <-d.friends:
+			d.findNode(node.addr, nodeID(node.id))
+		case <-d.exit:
+			return
+		}
 	}
 }
 
@@ -87,6 +115,20 @@ func (d *Dht) send(dict map[string]interface{}, dst *net.UDPAddr) {
 	defer d.mu.Unlock()
 	d.conn.WriteToUDP(bencode.Encode(dict), dst)
 	return
+}
+
+func (d *Dht) findNode(dst string, target nodeID) {
+	q := makeRequest(string(randBytes(2)), "find_node",
+		map[string]interface{}{
+			"id":     string(d.neighborID(target)),
+			"target": string(randBytes(20)),
+		})
+	addr, err := net.ResolveUDPAddr("udp", dst)
+	if err != nil {
+		return
+	}
+	// fmt.Println("findnode")
+	go d.send(q, addr)
 }
 
 func (d *Dht) onMessage(data []byte, src *net.UDPAddr) {
@@ -117,7 +159,8 @@ func (d *Dht) onQuery(dict map[string]interface{}, src *net.UDPAddr) {
 	case "get_peers":
 		d.onGetPeersQuery(dict, src)
 	case "announce_peer":
-		d.onAnnouncePeerQuery(dict, src)
+		a := d.onAnnouncePeerQuery(dict, src)
+		d.announcements <- a
 	case "ping":
 		d.onPing(dict, src)
 	case "find_node":
@@ -126,7 +169,33 @@ func (d *Dht) onQuery(dict map[string]interface{}, src *net.UDPAddr) {
 }
 
 func (d *Dht) onResponse(dict map[string]interface{}, src *net.UDPAddr) {
+	r, ok := dict["r"].(map[string]interface{})
+	if !ok {
+		return
+	}
 
+	nodes, ok := r["nodes"].(string)
+	if !ok {
+		return
+	}
+
+	length := len(nodes)
+	if length%26 != 0 {
+		return
+	}
+
+	for i := 0; i < length; i += 26 {
+		if !d.limiter.Allow() {
+			continue
+		}
+		id := nodes[i : i+20]
+		ip := net.IP([]byte(nodes[i+20 : i+24])).String()
+		port := binary.BigEndian.Uint16([]byte(nodes[i+24 : i+26]))
+
+		addr := ip + ":" + strconv.Itoa(int(port))
+
+		d.friends <- &node{addr: addr, id: id}
+	}
 }
 
 func (d *Dht) onGetPeersQuery(dict map[string]interface{}, src *net.UDPAddr) {
@@ -144,37 +213,95 @@ func (d *Dht) onGetPeersQuery(dict map[string]interface{}, src *net.UDPAddr) {
 	}
 
 	r := makeResponse(tid, map[string]interface{}{
-		"id": string(d.neighborID(nodeID(id))),
-		"nodes" : "",
-		"token" : d.makeToken(src),
+		"id":    string(d.neighborID(nodeID(id))),
+		"nodes": "",
+		"token": d.makeToken(src),
 	})
-	d.send(r, src)
+	go d.send(r, src)
 }
 
-func (d *Dht) onAnnouncePeerQuery(dict map[string]interface{}, src *net.UDPAddr) {
+func (d *Dht) onAnnouncePeerQuery(dict map[string]interface{}, src *net.UDPAddr) *announcement {
 	a, ok := dict["a"].(map[string]interface{})
 	if !ok {
-		return
+		return nil
 	}
 
 	token, ok := a["token"].(string)
 	if !ok || d.validateToken(token, src) {
-		return
+		return nil
 	}
 
 	infohash, ok := a["info_hash"].(string)
 	if !ok {
-		return
+		return nil
+	}
+
+	// check port
+	port := int64(src.Port)
+	impliedPort, ok := a["implied_port"].(int64)
+	if !ok {
+		return nil
+	}
+	if impliedPort == 0 {
+		if p, ok := a["port"].(int64); ok {
+			port = p
+		}
+	}
+
+	return &announcement{
+		src:      src,
+		infohash: infohash,
+		peer:     &net.TCPAddr{IP: src.IP, Port: int(port)},
 	}
 
 }
 
 func (d *Dht) onPing(dict map[string]interface{}, src *net.UDPAddr) {
-
+	tid, ok := dict["t"].(string)
+	if !ok {
+		return
+	}
+	a, ok := dict["a"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	id, ok := a["id"].(string)
+	if !ok {
+		return
+	}
+	if len(id) == 20 {
+		r := makeResponse(tid, map[string]interface{}{
+			"id": string(d.neighborID(nodeID(id))),
+		})
+		go d.send(r, src)
+	} else {
+		r := makeResponse(tid, map[string]interface{}{
+			"id": string(nodeID(id)),
+		})
+		go d.send(r, src)
+	}
 }
 
 func (d *Dht) onFindNode(dict map[string]interface{}, src *net.UDPAddr) {
-
+	tid, ok := dict["t"].(string)
+	if !ok {
+		return
+	}
+	a, ok := dict["a"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	id, ok := a["id"].(string)
+	if !ok {
+		return
+	}
+	if len(id) == 20 {
+		r := makeResponse(tid, map[string]interface{}{
+			"id":    string(d.neighborID(nodeID(id))),
+			"nodes": "",
+		})
+		go d.send(r, src)
+	}
 }
 
 func randBytes(n int) []byte {
@@ -188,6 +315,15 @@ func makeResponse(tid string, res map[string]interface{}) map[string]interface{}
 		"t": tid,
 		"y": "r",
 		"r": res,
+	}
+}
+
+func makeRequest(tid string, q string, a map[string]interface{}) map[string]interface{} {
+	return map[string]interface{}{
+		"t": tid,
+		"y": "q",
+		"q": q,
+		"a": a,
 	}
 }
 
