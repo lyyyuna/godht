@@ -55,12 +55,13 @@ func NewDHT(addr string, limit int) (*Dht, error) {
 	}
 
 	d := &Dht{
-		conn:    conn.(*net.UDPConn),
-		limiter: rate.NewLimiter(rate.Every(time.Second/time.Duration(limit)), limit),
-		friends: make(chan *node),
-		exit:    make(chan struct{}),
-		selfID:  randBytes(20),
-		secret:  randBytes(20),
+		conn:          conn.(*net.UDPConn),
+		limiter:       rate.NewLimiter(rate.Every(time.Second/time.Duration(limit)), limit),
+		friends:       make(chan *node),
+		exit:          make(chan struct{}),
+		selfID:        randBytes(20),
+		secret:        randBytes(20),
+		announcements: make(chan *announcement),
 	}
 
 	return d, nil
