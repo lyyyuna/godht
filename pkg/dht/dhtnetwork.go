@@ -1,4 +1,4 @@
-package main
+package dht
 
 import (
 	"bytes"
@@ -33,7 +33,7 @@ type Dht struct {
 	mu            sync.Mutex
 	selfID        nodeID
 	secret        []byte
-	announcements chan *announcement
+	Announcements chan *announcement
 }
 
 type node struct {
@@ -61,7 +61,7 @@ func NewDHT(addr string, limit int) (*Dht, error) {
 		exit:          make(chan struct{}),
 		selfID:        randBytes(20),
 		secret:        randBytes(20),
-		announcements: make(chan *announcement),
+		Announcements: make(chan *announcement),
 	}
 
 	return d, nil
@@ -161,7 +161,7 @@ func (d *Dht) onQuery(dict map[string]interface{}, src *net.UDPAddr) {
 		d.onGetPeersQuery(dict, src)
 	case "announce_peer":
 		a := d.onAnnouncePeerQuery(dict, src)
-		d.announcements <- a
+		d.Announcements <- a
 	case "ping":
 		d.onPing(dict, src)
 	case "find_node":

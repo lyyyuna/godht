@@ -1,17 +1,20 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"godht/pkg/dht"
+)
 
 func main() {
-	dht, err := NewDHT("0.0.0.0:6882", 500)
+	d, err := dht.NewDHT("0.0.0.0:6882", 500)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	dht.Run()
+	d.Run()
 	for {
 		select {
-		case a := <-dht.announcements:
+		case a := <-d.Announcements:
 			fmt.Println(a)
 		}
 	}
