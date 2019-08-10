@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"strconv"
@@ -95,7 +96,6 @@ func (d *Dht) listen() {
 			close(d.exit)
 			return
 		}
-		fmt.Println("listen")
 		d.onMessage(buf[:n], addr)
 	}
 }
@@ -212,7 +212,8 @@ func (d *Dht) onGetPeersQuery(dict map[string]interface{}, src *net.UDPAddr) {
 	if !ok {
 		return
 	}
-
+	infohash, ok := a["info_hash"].(string)
+	fmt.Println(hex.EncodeToString([]byte(infohash)))
 	r := makeResponse(tid, map[string]interface{}{
 		"id":    string(d.neighborID(nodeID(id))),
 		"nodes": "",
