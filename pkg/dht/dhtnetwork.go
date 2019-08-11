@@ -36,6 +36,7 @@ type Dht struct {
 	selfID        nodeID
 	secret        []byte
 	Announcements chan *announcement
+	rejoin        int
 }
 
 type node struct {
@@ -50,13 +51,13 @@ type announcement struct {
 }
 
 // NewDHT constructor
-func NewDHT(addr string, limit int) (*Dht, error) {
+func NewDHT(addr string, limit int, rejoin int) (*Dht, error) {
 	conn, err := net.ListenPacket("udp", addr)
 	if err != nil {
 		glog.Errorf("Listen on %s failed, error is %v", addr, err)
 		return nil, err
 	}
-	glog.Infof("Listening on %v, the friends rate limit is %v", addr, limit)
+	glog.Infof("Listening on %v, \nthe friends rate limit is %v, \nrejoin every %v seconds.", addr, limit, rejoin)
 	d := &Dht{
 		conn:          conn.(*net.UDPConn),
 		limiter:       rate.NewLimiter(rate.Every(time.Second/time.Duration(limit)), limit),
@@ -65,6 +66,7 @@ func NewDHT(addr string, limit int) (*Dht, error) {
 		selfID:        randBytes(20),
 		secret:        randBytes(20),
 		Announcements: make(chan *announcement),
+		rejoin:        rejoin,
 	}
 
 	return d, nil
@@ -80,13 +82,15 @@ func (d *Dht) Run() {
 }
 
 func (d *Dht) join() {
-	for i := 0; i < 3; i++ {
+	for {
 		for _, addr := range seeds {
 			d.friends <- &node{
 				addr: addr,
 				id:   string(randBytes(20)),
 			}
 		}
+		time.Sleep(time.Duration(d.rejoin) * time.Second)
+		glog.Info("Rejoin every 60 seconds.")
 	}
 }
 
