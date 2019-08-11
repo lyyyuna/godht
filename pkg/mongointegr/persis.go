@@ -16,8 +16,9 @@ import (
 
 // PersistStore structure of persist layer
 type PersistStore struct {
-	mclient     *mongo.Client
-	mcollection *mongo.Collection
+	mclient       *mongo.Client
+	mgetpeerquery *mongo.Collection
+	mannouncement *mongo.Collection
 }
 
 // NewMongoClient create a new mongo client
@@ -36,10 +37,12 @@ func NewMongoClient(addr string) (*PersistStore, error) {
 	}
 
 	collection := client.Database("test").Collection("infohash")
+	collection2 := client.Database("test").Collection("announcement")
 
 	return &PersistStore{
-		mclient:     client,
-		mcollection: collection,
+		mclient:       client,
+		mgetpeerquery: collection,
+		mannouncement: collection2,
 	}, nil
 }
 
@@ -53,7 +56,7 @@ func (ps *PersistStore) InsertOneInfoHash(peerQuery *dht.GetPeersQuery) {
 
 	opup := options.Update()
 	opup.SetUpsert(true)
-	_, err := ps.mcollection.UpdateOne(
+	_, err := ps.mgetpeerquery.UpdateOne(
 		ctx,
 		bson.D{
 			{"infohash", infohash},
@@ -61,6 +64,32 @@ func (ps *PersistStore) InsertOneInfoHash(peerQuery *dht.GetPeersQuery) {
 		bson.D{{
 			"$set",
 			bson.D{{"addr", addr}},
+		}},
+		opup,
+	)
+	if err != nil {
+		glog.Errorf("Insert error: %v", err)
+	}
+}
+
+func (ps *PersistStore) InsertOneAnnouncement(announce *dht.Announcement) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	infohash := hex.EncodeToString([]byte(announce.Infohash))
+	nodeaddr := announce.Src.String()
+	peeraddr := announce.Peer.String()
+
+	opup := options.Update()
+	opup.SetUpsert(true)
+	_, err := ps.mannouncement.UpdateOne(
+		ctx,
+		bson.D{
+			{"infohash", infohash},
+		},
+		bson.D{{
+			"$set",
+			bson.D{{"nodeaddr", nodeaddr}, {"peeraddr", peeraddr}},
 		}},
 		opup,
 	)

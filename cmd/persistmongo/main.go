@@ -19,26 +19,31 @@ func main() {
 	addr := fmt.Sprintf("0.0.0.0:%s", *port)
 
 	defer glog.Flush()
-
+	// Init mongo client, persistent store
 	mp, err := mongointegr.NewMongoClient("127.0.0.1:27017")
 	if err != nil {
 		fmt.Println(err)
+		glog.Error(err)
 		return
 	}
+	// Init DHT crawler
 	d, err := dht.NewDHT(addr, *limit, *rejoin)
 	if err != nil {
 		fmt.Println(err)
+		glog.Error((err))
 		return
 	}
 
+	// Run the crawler
 	d.Run()
 	for {
 		select {
 		case a := <-d.Announcements:
-			fmt.Println(a)
+			// fmt.Println(a)
+			mp.InsertOneAnnouncement(a)
 		case g := <-d.GetPeersQueries:
 			fmt.Println(hex.EncodeToString([]byte(g.Infohash)))
-			mp.InsertOneInfoHash(g)
+			// mp.InsertOneInfoHash(g)
 		}
 	}
 }
