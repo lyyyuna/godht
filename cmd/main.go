@@ -1,12 +1,24 @@
 package main
 
 import (
+	"encoding/hex"
+	"flag"
 	"fmt"
 	"godht/pkg/dht"
+
+	"github.com/golang/glog"
 )
 
 func main() {
-	d, err := dht.NewDHT("0.0.0.0:6882", 500)
+	port := flag.String("port", "6882", "Listening port")
+	limit := flag.Int("limit", 500, "Friends made upper limit per second, default 500/seconds")
+
+	flag.Parse()
+	addr := fmt.Sprintf("0.0.0.0:%s", *port)
+
+	defer glog.Flush()
+
+	d, err := dht.NewDHT(addr, *limit)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -15,7 +27,7 @@ func main() {
 	for {
 		select {
 		case a := <-d.Announcements:
-			fmt.Println(a)
+			glog.Info(hex.EncodeToString([]byte(a.Infohash)))
 		}
 	}
 }

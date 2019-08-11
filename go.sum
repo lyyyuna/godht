@@ -1,3 +1,5 @@
+github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b h1:VKtxabqXZkF25pY9ekfRL6a582T4P37/31XEstQ5p58=
+github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b/go.mod h1:SBH7ygxi8pfUlaOkMMuAQtPIUF8ecWP5IEl/CR7VP2Q=
 github.com/marksamman/bencode v0.0.0-20150821143521-dc84f26e086e h1:KMs6SK8iDSR1+ZzOK10L5wGPpWDByyvOe5nrqk51g2U=
 github.com/marksamman/bencode v0.0.0-20150821143521-dc84f26e086e/go.mod h1:+AHfJo5+69p+fjvMJTmYajNP9rFBHQcaTDFmuXRRATI=
 golang.org/x/time v0.0.0-20190308202827-9d24e82272b4 h1:SvFZT6jyqRaOeXpc5h/JSfZenJ2O330aBsf7JfSUXmQ=

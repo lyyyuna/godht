@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/marksamman/bencode"
 	"golang.org/x/time/rate"
 )
@@ -43,18 +44,19 @@ type node struct {
 }
 
 type announcement struct {
-	src      *net.UDPAddr
-	infohash string
-	peer     *net.TCPAddr
+	Src      *net.UDPAddr
+	Infohash string
+	Peer     *net.TCPAddr
 }
 
 // NewDHT constructor
 func NewDHT(addr string, limit int) (*Dht, error) {
 	conn, err := net.ListenPacket("udp", addr)
 	if err != nil {
+		glog.Errorf("Listen on %s failed, error is %v", addr, err)
 		return nil, err
 	}
-
+	glog.Infof("Listening on %v, the friends rate limit is %v", addr, limit)
 	d := &Dht{
 		conn:          conn.(*net.UDPConn),
 		limiter:       rate.NewLimiter(rate.Every(time.Second/time.Duration(limit)), limit),
@@ -71,6 +73,7 @@ func NewDHT(addr string, limit int) (*Dht, error) {
 // Run start to run the DHT sniffer
 func (d *Dht) Run() {
 	fmt.Println("Begin to run....")
+	glog.Info("Begin to run...")
 	go d.join()
 	go d.listen()
 	go d.makeFriends()
@@ -83,7 +86,6 @@ func (d *Dht) join() {
 				addr: addr,
 				id:   string(randBytes(20)),
 			}
-			fmt.Println(len(d.friends))
 		}
 	}
 }
@@ -93,8 +95,10 @@ func (d *Dht) listen() {
 	for {
 		n, addr, err := d.conn.ReadFromUDP(buf)
 		if err != nil {
-			close(d.exit)
-			return
+			//close(d.exit)
+			//return
+			glog.Errorf("Read from UDP port failed, %v", err)
+			continue
 		}
 		d.onMessage(buf[:n], addr)
 	}
@@ -126,15 +130,17 @@ func (d *Dht) findNode(dst string, target nodeID) {
 		})
 	addr, err := net.ResolveUDPAddr("udp", dst)
 	if err != nil {
+		glog.Errorf("Fail to reslove destination UDP addr, the error is: %v", err)
 		return
 	}
-	// fmt.Println("findnode")
+
 	go d.send(q, addr)
 }
 
 func (d *Dht) onMessage(data []byte, src *net.UDPAddr) {
 	dict, err := bencode.Decode(bytes.NewReader(data))
 	if err != nil {
+		glog.Errorf("Fail to bencode decode, error is: %v", err)
 		return
 	}
 
@@ -251,9 +257,9 @@ func (d *Dht) onAnnouncePeerQuery(dict map[string]interface{}, src *net.UDPAddr)
 	}
 
 	return &announcement{
-		src:      src,
-		infohash: infohash,
-		peer:     &net.TCPAddr{IP: src.IP, Port: int(port)},
+		Src:      src,
+		Infohash: infohash,
+		Peer:     &net.TCPAddr{IP: src.IP, Port: int(port)},
 	}
 
 }

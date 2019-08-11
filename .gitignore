@@ -14,3 +14,10 @@
 .glide/
 
 .idea
+a.out
+*.log
+main
+go.sum
+*.prof
+log
+*.exe
