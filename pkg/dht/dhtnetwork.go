@@ -161,7 +161,6 @@ func (d *Dht) onQuery(dict map[string]interface{}, src *net.UDPAddr) {
 	if !ok {
 		return
 	}
-	fmt.Println(q)
 	switch q {
 	case "get_peers":
 		d.onGetPeersQuery(dict, src)
