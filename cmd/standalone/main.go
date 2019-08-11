@@ -29,6 +29,8 @@ func main() {
 		select {
 		case a := <-d.Announcements:
 			glog.Info(hex.EncodeToString([]byte(a.Infohash)))
+		case g := <-d.GetPeersQueries:
+			fmt.Println(hex.EncodeToString([]byte(g.Infohash)))
 		}
 	}
 }

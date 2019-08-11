@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"net"
 	"strconv"
@@ -28,20 +27,26 @@ type nodeID []byte
 
 // Dht struct description
 type Dht struct {
-	conn          *net.UDPConn
-	limiter       *rate.Limiter
-	friends       chan *node
-	exit          chan struct{}
-	mu            sync.Mutex
-	selfID        nodeID
-	secret        []byte
-	Announcements chan *announcement
-	rejoin        int
+	conn            *net.UDPConn
+	limiter         *rate.Limiter
+	friends         chan *node
+	exit            chan struct{}
+	mu              sync.Mutex
+	selfID          nodeID
+	secret          []byte
+	Announcements   chan *announcement
+	GetPeersQueries chan *getPeersQuery
+	rejoin          int
 }
 
 type node struct {
 	addr string
 	id   string
+}
+
+type getPeersQuery struct {
+	Src      *net.UDPAddr
+	Infohash string
 }
 
 type announcement struct {
@@ -59,14 +64,15 @@ func NewDHT(addr string, limit int, rejoin int) (*Dht, error) {
 	}
 	glog.Infof("Listening on %v, \nthe friends rate limit is %v, \nrejoin every %v seconds.", addr, limit, rejoin)
 	d := &Dht{
-		conn:          conn.(*net.UDPConn),
-		limiter:       rate.NewLimiter(rate.Every(time.Second/time.Duration(limit)), limit),
-		friends:       make(chan *node),
-		exit:          make(chan struct{}),
-		selfID:        randBytes(20),
-		secret:        randBytes(20),
-		Announcements: make(chan *announcement),
-		rejoin:        rejoin,
+		conn:            conn.(*net.UDPConn),
+		limiter:         rate.NewLimiter(rate.Every(time.Second/time.Duration(limit)), limit),
+		friends:         make(chan *node),
+		exit:            make(chan struct{}),
+		selfID:          randBytes(20),
+		secret:          randBytes(20),
+		Announcements:   make(chan *announcement),
+		GetPeersQueries: make(chan *getPeersQuery),
+		rejoin:          rejoin,
 	}
 
 	return d, nil
@@ -90,7 +96,7 @@ func (d *Dht) join() {
 			}
 		}
 		time.Sleep(time.Duration(d.rejoin) * time.Second)
-		glog.Info("Rejoin every 60 seconds.")
+		// glog.Infof("Rejoin every %v seconds.", d.rejoin)
 	}
 }
 
@@ -167,7 +173,10 @@ func (d *Dht) onQuery(dict map[string]interface{}, src *net.UDPAddr) {
 	}
 	switch q {
 	case "get_peers":
-		d.onGetPeersQuery(dict, src)
+		g, ok := d.onGetPeersQuery(dict, src)
+		if ok {
+			d.GetPeersQueries <- g
+		}
 	case "announce_peer":
 		a, ok := d.onAnnouncePeerQuery(dict, src)
 		if ok {
@@ -210,27 +219,32 @@ func (d *Dht) onResponse(dict map[string]interface{}, src *net.UDPAddr) {
 	}
 }
 
-func (d *Dht) onGetPeersQuery(dict map[string]interface{}, src *net.UDPAddr) {
+func (d *Dht) onGetPeersQuery(dict map[string]interface{}, src *net.UDPAddr) (*getPeersQuery, bool) {
 	tid, ok := dict["t"].(string)
 	if !ok {
-		return
+		return nil, false
 	}
 	a, ok := dict["a"].(map[string]interface{})
 	if !ok {
-		return
+		return nil, false
 	}
 	id, ok := a["id"].(string)
 	if !ok {
-		return
+		return nil, false
 	}
 	infohash, ok := a["info_hash"].(string)
-	fmt.Println(hex.EncodeToString([]byte(infohash)))
+	// fmt.Println(hex.EncodeToString([]byte(infohash)))
 	r := makeResponse(tid, map[string]interface{}{
 		"id":    string(d.neighborID(nodeID(id))),
 		"nodes": "",
 		"token": d.makeToken(src),
 	})
 	go d.send(r, src)
+
+	return &getPeersQuery{
+		Src:      src,
+		Infohash: infohash,
+	}, true
 }
 
 func (d *Dht) onAnnouncePeerQuery(dict map[string]interface{}, src *net.UDPAddr) (*announcement, bool) {
