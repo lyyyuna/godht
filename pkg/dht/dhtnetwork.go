@@ -161,13 +161,15 @@ func (d *Dht) onQuery(dict map[string]interface{}, src *net.UDPAddr) {
 	if !ok {
 		return
 	}
-
+	fmt.Println(q)
 	switch q {
 	case "get_peers":
 		d.onGetPeersQuery(dict, src)
 	case "announce_peer":
-		a := d.onAnnouncePeerQuery(dict, src)
-		d.Announcements <- a
+		a, ok := d.onAnnouncePeerQuery(dict, src)
+		if ok {
+			d.Announcements <- a
+		}
 	case "ping":
 		d.onPing(dict, src)
 	case "find_node":
@@ -228,27 +230,27 @@ func (d *Dht) onGetPeersQuery(dict map[string]interface{}, src *net.UDPAddr) {
 	go d.send(r, src)
 }
 
-func (d *Dht) onAnnouncePeerQuery(dict map[string]interface{}, src *net.UDPAddr) *announcement {
+func (d *Dht) onAnnouncePeerQuery(dict map[string]interface{}, src *net.UDPAddr) (*announcement, bool) {
 	a, ok := dict["a"].(map[string]interface{})
 	if !ok {
-		return nil
+		return nil, false
 	}
 
 	token, ok := a["token"].(string)
 	if !ok || d.validateToken(token, src) {
-		return nil
+		return nil, false
 	}
 
 	infohash, ok := a["info_hash"].(string)
 	if !ok {
-		return nil
+		return nil, false
 	}
 
 	// check port
 	port := int64(src.Port)
 	impliedPort, ok := a["implied_port"].(int64)
 	if !ok {
-		return nil
+		return nil, false
 	}
 	if impliedPort == 0 {
 		if p, ok := a["port"].(int64); ok {
@@ -260,7 +262,7 @@ func (d *Dht) onAnnouncePeerQuery(dict map[string]interface{}, src *net.UDPAddr)
 		Src:      src,
 		Infohash: infohash,
 		Peer:     &net.TCPAddr{IP: src.IP, Port: int(port)},
-	}
+	}, true
 
 }
 
