@@ -123,6 +123,8 @@ func (d *Dht) makeFriends() {
 			d.findNode(node.addr, nodeID(node.id))
 		case <-d.exit:
 			return
+		default:
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 }

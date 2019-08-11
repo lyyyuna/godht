@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"godht/pkg/dht"
 	"godht/pkg/mongointegr"
+	"time"
 
 	"github.com/golang/glog"
 )
@@ -45,6 +46,8 @@ func main() {
 		case g := <-d.GetPeersQueries:
 			fmt.Println(hex.EncodeToString([]byte(g.Infohash)))
 			// mp.InsertOneInfoHash(g)
+		default:
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 }
