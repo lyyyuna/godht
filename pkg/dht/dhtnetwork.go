@@ -177,12 +177,21 @@ func (d *Dht) onQuery(dict map[string]interface{}, src *net.UDPAddr) {
 	case "get_peers":
 		g, ok := d.onGetPeersQuery(dict, src)
 		if ok {
-			d.GetPeersQueries <- g
+			select {
+			case d.GetPeersQueries <- g:
+			default:
+				glog.Error("Fail to send to GetPeersQueries channel")
+			}
 		}
 	case "announce_peer":
 		a, ok := d.onAnnouncePeerQuery(dict, src)
 		if ok {
-			d.Announcements <- a
+			select {
+			case d.Announcements <- a:
+			default:
+				glog.Error("Fail to send to Announcements channel")
+			}
+
 		}
 	case "ping":
 		d.onPing(dict, src)
