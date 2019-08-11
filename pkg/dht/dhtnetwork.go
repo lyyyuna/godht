@@ -34,8 +34,8 @@ type Dht struct {
 	mu              sync.Mutex
 	selfID          nodeID
 	secret          []byte
-	Announcements   chan *announcement
-	GetPeersQueries chan *getPeersQuery
+	Announcements   chan *Announcement
+	GetPeersQueries chan *GetPeersQuery
 	rejoin          int
 }
 
@@ -44,12 +44,14 @@ type node struct {
 	id   string
 }
 
-type getPeersQuery struct {
+// GetPeersQuery from get_peer query
+type GetPeersQuery struct {
 	Src      *net.UDPAddr
 	Infohash string
 }
 
-type announcement struct {
+// Announcement from announcemnt query
+type Announcement struct {
 	Src      *net.UDPAddr
 	Infohash string
 	Peer     *net.TCPAddr
@@ -70,8 +72,8 @@ func NewDHT(addr string, limit int, rejoin int) (*Dht, error) {
 		exit:            make(chan struct{}),
 		selfID:          randBytes(20),
 		secret:          randBytes(20),
-		Announcements:   make(chan *announcement),
-		GetPeersQueries: make(chan *getPeersQuery),
+		Announcements:   make(chan *Announcement, 100),
+		GetPeersQueries: make(chan *GetPeersQuery, 100),
 		rejoin:          rejoin,
 	}
 
@@ -219,7 +221,7 @@ func (d *Dht) onResponse(dict map[string]interface{}, src *net.UDPAddr) {
 	}
 }
 
-func (d *Dht) onGetPeersQuery(dict map[string]interface{}, src *net.UDPAddr) (*getPeersQuery, bool) {
+func (d *Dht) onGetPeersQuery(dict map[string]interface{}, src *net.UDPAddr) (*GetPeersQuery, bool) {
 	tid, ok := dict["t"].(string)
 	if !ok {
 		return nil, false
@@ -241,13 +243,13 @@ func (d *Dht) onGetPeersQuery(dict map[string]interface{}, src *net.UDPAddr) (*g
 	})
 	go d.send(r, src)
 
-	return &getPeersQuery{
+	return &GetPeersQuery{
 		Src:      src,
 		Infohash: infohash,
 	}, true
 }
 
-func (d *Dht) onAnnouncePeerQuery(dict map[string]interface{}, src *net.UDPAddr) (*announcement, bool) {
+func (d *Dht) onAnnouncePeerQuery(dict map[string]interface{}, src *net.UDPAddr) (*Announcement, bool) {
 	a, ok := dict["a"].(map[string]interface{})
 	if !ok {
 		return nil, false
@@ -275,7 +277,7 @@ func (d *Dht) onAnnouncePeerQuery(dict map[string]interface{}, src *net.UDPAddr)
 		}
 	}
 
-	return &announcement{
+	return &Announcement{
 		Src:      src,
 		Infohash: infohash,
 		Peer:     &net.TCPAddr{IP: src.IP, Port: int(port)},
